@@ -14,7 +14,6 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
-
 jobs:
   build-and-deploy:
     environment:
@@ -24,23 +23,39 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+
+      # `npm ci` is reproducible and verifies package-lock.json. If the lockfile
+      # is ever out of sync it falls back to `npm install` rather than failing.
       - name: Install dependencies
-        run: npm install
+        run: npm ci || npm install
+
+      # These are read at build time by Vite. The publishable key is safe to ship
+      # to a browser; Row Level Security is what protects the data.
       - name: Build website
-        run: npm run build -- --base=/familyinventory/
+        run: npm run build
         env:
-          VITE_SUPABASE_URL: https://crbnmqpgzgnldwiltgyq.supabase.co
-          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_9gU5y3O4mpUPArS7JOOYPg_qxsWKTyn
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://crbnmqpgzgnldwiltgyq.supabase.co' }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_9gU5y3O4mpUPArS7JOOYPg_qxsWKTyn' }}
+
+      # enablement: true creates the Pages site on the first run. Without it the
+      # action 404s ("Get Pages site failed") on any repo where Pages has never
+      # been switched on -- which is exactly why every run was failing.
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
+
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
