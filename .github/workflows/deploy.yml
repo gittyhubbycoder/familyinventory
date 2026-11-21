@@ -46,10 +46,18 @@ jobs:
       # enablement: true creates the Pages site on the first run. Without it the
       # action 404s ("Get Pages site failed") on any repo where Pages has never
       # been switched on -- which is exactly why every run was failing.
+      #
+      # Creating a Pages site needs admin rights that the default GITHUB_TOKEN
+      # does not always have (and never has on a private repo, where Pages also
+      # requires a paid plan). If this step still fails, either set
+      # Settings -> Pages -> Source = "GitHub Actions" by hand, or add a PAT with
+      # `repo` + `pages` scope as the secret PAGES_ENABLEMENT_TOKEN and this step
+      # will use it instead.
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:
           enablement: true
+          token: ${{ secrets.PAGES_ENABLEMENT_TOKEN || github.token }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
