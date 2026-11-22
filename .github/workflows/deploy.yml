@@ -10,9 +10,11 @@ permissions:
   pages: write
   id-token: write
 
+# Cancel superseded *queued* runs, but never interrupt a deployment that has
+# already started -- interrupting one is a known way to leave the site stuck.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy:
@@ -64,6 +66,12 @@ jobs:
         with:
           path: ./dist
 
+      # Must be v5. With deploy-pages@v4 the deployment fails with
+      # 'No artifacts named "github-pages" were found for this workflow run'
+      # even though the upload step succeeded -- v4 can no longer read the
+      # artifact format produced by upload-pages-artifact@v3 on current runners.
+      # This 3-action set (configure v5 + upload v3 + deploy v5) is the exact
+      # combination in GitHub's own official "static" starter workflow.
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
