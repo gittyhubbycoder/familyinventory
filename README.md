@@ -13,30 +13,35 @@ A React + Vite web app for editing the existing Supabase `public.inventory` tabl
 
 ---
 
-## TL;DR — why the deploy was failing
+## Deploy status
 
-Every GitHub Actions run failed at the **Configure Pages** step with:
+The site is live at **https://gittyhubbycoder.github.io/familyinventory/** and publishes automatically on every push to `main`.
 
-```
-Get Pages site failed. Please verify that the repository has Pages enabled
-and configured to build using GitHub Actions.
-```
+### The three faults that were breaking it (all fixed)
 
-That is not a code problem — the `Build website` step always succeeded. There were two causes, and **both must be fixed for the site to publish**:
+Each was a separate failure, and each masked the next one, which is why it looked like nothing was ever being fixed:
 
-1. **GitHub Pages had never been switched on for this repository.** A repository has no Pages site until one is created, so the API returns `404` and the action aborts before uploading anything.
-2. **This repository was private.** GitHub Pages for a private repository requires a paid plan (Pro/Team/Enterprise). The workflow file alone cannot change either of these; they are account settings.
+| # | Symptom in Actions | Cause | Fix |
+| --- | --- | --- | --- |
+| 1 | `Configure Pages` failed: *"Get Pages site failed"* | Pages had never been enabled on the repo, so the API returned `404` before any upload happened | `actions/configure-pages` now runs with `enablement: true` |
+| 2 | Same step, still failing after fix 1 | The repository was **private**; Pages on a private repo needs a paid plan | Repository made **public** |
+| 3 | `Deploy` failed: *"No artifacts named \`github-pages\` were found for this workflow run"* — although `Upload Pages artifact` succeeded | `actions/deploy-pages@v4` can no longer read the artifact that `upload-pages-artifact@v3` produces on current runners | Upgraded to `actions/deploy-pages@v5` |
 
-### Do these two things once (2 clicks)
+The action versions now match GitHub's own official `static` Pages starter workflow exactly: `configure-pages@v5` + `upload-pages-artifact@v3` + `deploy-pages@v5`. If you ever bump one of the three, bump them together — a mismatched set produces exactly the "No artifacts named github-pages" error above.
 
-1. Set Pages source: **[Settings → Pages](https://github.com/gittyhubbycoder/familyinventory/settings/pages) → Build and deployment → Source = "GitHub Actions"**
-2. If the repository is still private, either make it public (**Settings → General → Danger Zone → Change visibility → Public**) or keep it private and put the GitHub account on **Pro**.
+`concurrency` is also set to `cancel-in-progress: false`. Interrupting a deployment that is already running can leave the site stuck; superseded *queued* runs are still collapsed automatically.
 
-Then re-run the workflow: **Actions → "Deploy Family Inventory to GitHub Pages" → Run workflow**.
+> **The repository is public, so the Supabase URL and publishable key are visible** in the JavaScript bundle to anyone who opens the site. That is normal and unavoidable for a client-side app — it is safe *only* because Row Level Security protects the data. Keep the policies in step 1 in place and keep public sign-ups disabled. If you would rather not publish them, deploy `dist/` to a private host (Netlify/Vercel/Cloudflare Pages accept private repos) instead.
 
-> **Before making it public:** a client-side web app cannot hide its Supabase URL and publishable key — they end up in the JavaScript bundle and are visible to anyone. That is by design and is safe *only* because Row Level Security protects your data. The publishable key grants no table access to anonymous visitors as long as the policies in step 1 below are in place and public sign-ups stay disabled. If you would rather not publish them, deploy to a private host (Netlify/Vercel/Cloudflare Pages support private Git repos) instead of GitHub Pages.
+### If a future deploy fails
 
-The workflow already creates the Pages site itself on a public repo (`enablement: true`), so the Settings change in step 1 is usually only needed if the first run still reports 403.
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `Get Pages site failed` | Pages disabled, or Source is not "GitHub Actions" | [Settings → Pages](https://github.com/gittyhubbycoder/familyinventory/settings/pages) → Source = GitHub Actions |
+| `No artifacts named "github-pages" were found` | Mismatched Pages action versions | Keep configure v5 / upload v3 / deploy v5 together |
+| `Configure Pages` fails with 403 | Repo private on a free plan, or an org policy blocks it | Make it public, or upgrade |
+| Deploy succeeds but the page is blank | Stale cached bundle | Hard-refresh (Ctrl/Cmd+Shift+R) |
+| Page loads but shows "Configuration needed" | Build ran without env vars | Set the repository Variables below and rebuild |
 
 ---
 
@@ -125,15 +130,6 @@ To point the deployed site at a different Supabase project, set repository **Var
 The workflow falls back to the values currently committed if the variables are not set. Builds use a **relative base path**, so the site works under `/familyinventory/` without any special configuration.
 
 Add the published URL to **Supabase → Authentication → URL Configuration** → Site URL and Redirect URLs if your Auth settings ask for it.
-
-### If the deploy still fails
-
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| `Get Pages site failed` / `Failed to create deployment (status: 404)` | Pages is not enabled, or Source is not "GitHub Actions" | Settings → Pages → Source = GitHub Actions |
-| `Configure Pages` fails with 403 | Private repo on a free plan, or org policy | Make it public, or upgrade |
-| Deploy succeeds but the page is blank | Stale cached bundle | Hard-refresh (Ctrl/Cmd+Shift+R) |
-| Page loads but shows "Configuration needed" | Build had no env vars | Set the repository Variables above and rebuild |
 
 ## 5. Other hosting (private repositories)
 
